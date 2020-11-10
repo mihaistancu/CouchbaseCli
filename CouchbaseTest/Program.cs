@@ -9,20 +9,23 @@ namespace CouchbaseTest
     class Program
     {
         static void Main(string[] args)
-        {
-            
+        {           
             var configuration = new ClientConfiguration 
             { 
                 Servers = new List<Uri>{new Uri("http://localhost:8091/")}
             };
-            var authenticator = new PasswordAuthenticator ("", "");
+            var authenticator = new PasswordAuthenticator ("testuser", "testpassword");
             ClusterHelper.Initialize(configuration, authenticator);
 
             var bucket = ClusterHelper.GetBucket("EphemeralBucket");
 
             bucket.Upsert("my-key", "my-value", TimeSpan.FromMinutes(5));
 
-            
+            var result = bucket.Get<string>("my-key");
+
+            Console.Write(result.Value);
+
         }
+
     }
 }
