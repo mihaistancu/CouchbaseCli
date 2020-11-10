@@ -1,7 +1,5 @@
 ﻿using CommandLine;
 using Couchbase;
-using Couchbase.Authentication;
-using Couchbase.Configuration.Client;
 using System;
 using System.Collections.Generic;
 
@@ -9,7 +7,7 @@ namespace CouchbaseTest
 {
     class Options
     {
-        [Option('s', "server", Default ="http://localhost:8091/")]
+        [Option('s', "server", Default ="http://localhost")]
         public string Url { get; set; }
 
         [Option('u', "user", Required = true)]
@@ -27,8 +25,17 @@ namespace CouchbaseTest
         [Option('t', "timeout", Default = "00:05:00")]
         public string Timeout { get; set; }
 
-        [Option('v', "value", Required = true)]
+        [Option('v', "value", Default = "(empty)")]
         public string Value { get; set; }
+
+        [Option('r', "read", Default = false)]
+        public bool Read { get; set; }
+
+        [Option('w', "write", Default = false)]
+        public bool Write { get; set; } 
+
+        [Option('d', "delete", Default = false)]
+        public bool Delete { get; set; } 
     }
 
     class Program
@@ -42,20 +49,31 @@ namespace CouchbaseTest
 
         static void Run(Options options)
         {
-            var configuration = new ClientConfiguration 
-            { 
-                Servers = new List<Uri>{new Uri(options.Url)}
-            };
-            var authenticator = new PasswordAuthenticator (options.Username, options.Password);
-            ClusterHelper.Initialize(configuration, authenticator);
+            try
+            {
+                var cluster = Cluster.ConnectAsync(options.Url, options.Username, options.Password).Result;
+                var bucket = cluster.BucketAsync(options.Bucket).Result;
+                var collection = bucket.DefaultCollection();
 
-            var bucket = ClusterHelper.GetBucket(options.Bucket);
-
-            bucket.Upsert(options.Key, options.Value, TimeSpan.Parse(options.Timeout));
-
-            var result = bucket.Get<string>(options.Key);
-
-            Console.Write(result.Value);
+                if (options.Write)
+                {
+                    collection.UpsertAsync(options.Key, options.Value, new Couchbase.KeyValue.UpsertOptions().Expiry(TimeSpan.Parse(options.Timeout))).Wait();
+                }
+                if (options.Read)
+                {
+                    var result = collection.GetAsync(options.Key).Result;
+                    Console.WriteLine(result.ContentAs<string>());
+                }
+                if (options.Delete)
+                {
+                    collection.RemoveAsync(options.Key).Wait();
+                }
+            }
+            catch (Exception exception)
+            {
+                Console.WriteLine(exception);
+            }
+            
         }
 
         static void HandleParseError(IEnumerable<Error> errors)
